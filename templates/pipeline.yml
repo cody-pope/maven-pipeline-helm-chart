@@ -1,0 +1,67 @@
+{{- $applicationName := .Release.Name -}}
+{{- $applicationNamespace := .Release.Namespace -}}
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: {{ $applicationName }}
+spec:
+  tasks:
+
+    {{- with .Values.git }}
+    - name: git-clone
+      params:
+        - name: url
+          value: {{ .url }}
+        - name: revision
+          value: {{ .branch }}
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+    {{- end }}
+
+    {{- with .Values.maven }}
+    - name: maven
+      {{- if .contextDir }}
+      params:
+        - name: CONTEXT_DIR
+          value: {{ .contextDir }}
+      {{- end }}
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: ClusterTask
+        name: maven
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+        - name: maven-settings
+          workspace: maven-settings
+    {{- end }}
+
+    {{- with .Values.java }}
+    - name: s2i-java
+      params:
+        - name: VERSION
+          value: {{ .version }}
+        - name: PATH_CONTEXT
+          value: target
+        - name: IMAGE
+          value: image-registry.openshift-image-registry.svc:5000/{{ $applicationNamespace }}/{{ $applicationName }}
+        - name: TLSVERIFY
+          value: 'false'
+      runAfter:
+        - maven
+      taskRef:
+        kind: ClusterTask
+        name: s2i-java
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    {{- end }}
+
+  workspaces:
+    - name: shared-workspace
+    - name: maven-settings

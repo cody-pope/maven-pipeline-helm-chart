@@ -1,0 +1,5 @@
+apiVersion: v2
+name: maven-pipeline
+description: Create a Tekton pipeline for a Maven application
+type: application
+version: 1.0.0
